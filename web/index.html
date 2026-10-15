@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>海报自动化工作台</title><link rel="stylesheet" href="styles.css">
+<script src="planner.js" defer></script><script src="app.js" defer></script>
+</head>
+<body>
+<header><span class="badge">海报工作台 · 第二阶段</span><h1>填好需求，让海报初具模样。</h1><p>左侧填写需求，右侧实时预览。换种排版，再把方案带走。</p><p class="note">本地规则生成 · 无付费 API · 不上传客户信息 · 几何背景预览</p></header>
+<main>
+<section class="card" aria-labelledby="input-title">
+<div class="section-title"><h2 id="input-title">01 / 填写需求</h2><button id="example" type="button">填入示例</button></div>
+<p class="note">带 * 为必填。尺寸单位为像素。</p>
+<form id="brief-form">
+<div class="row"><label>宽度（px）*<input name="width" type="number" min="100" max="20000" step="1" value="1080" required></label><label>高度（px）*<input name="height" type="number" min="100" max="20000" step="1" value="1920" required></label></div>
+<label>海报主题 *<input name="theme" maxlength="100" placeholder="例如：春日新品咖啡上市" required></label>
+<div class="row"><label>行业<select name="industry"><option>通用</option><option>餐饮美食</option><option>美妆护肤</option><option>教育培训</option><option>科技数码</option><option>生活零售</option></select></label><label>风格<select name="style"><option>简约现代</option><option>清新自然</option><option>高级质感</option><option>活力促销</option><option>科技未来</option><option>复古文艺</option></select></label></div>
+<label>色系<select name="palette"><option>自动推荐</option><option>暖橙奶油</option><option>自然绿白</option><option>黑金质感</option><option>蓝白科技</option><option>柔和粉紫</option></select></label>
+<label>主标题<input name="title" maxlength="160" placeholder="客户原文；留空则提供待确认备选"></label>
+<label>副标题<input name="subtitle" maxlength="240" placeholder="例如：一杯唤醒春日灵感"></label>
+<label>正文文案<textarea name="body" maxlength="3000" rows="4" placeholder="已确认的卖点、价格、日期、地点等"></textarea></label>
+<label>行动引导<input name="cta" maxlength="160" placeholder="例如：到店品尝 / 扫码了解详情"></label>
+<label>目标受众与投放渠道<input name="audience" maxlength="300" placeholder="例如：年轻上班族，朋友圈与门店电子屏"></label>
+<label>其他要求<textarea name="notes" maxlength="1500" rows="3" placeholder="Logo、联系方式、必须保留的信息、禁用元素等"></textarea></label>
+<button class="primary" type="submit">查看完整制作方案 ↓</button>
+</form></section>
+<div class="workspace">
+<section class="card preview-card" aria-labelledby="preview-title">
+<div class="section-title"><h2 id="preview-title">02 / 实时海报预览</h2><button id="relayout" type="button">重新排版 ↻</button></div>
+<p id="canvas-info" class="note"></p>
+<div id="preview-stage" class="preview-stage"><div id="canvas-frame"><article id="poster" aria-label="海报排版预览">
+<div class="shape shape-one" aria-hidden="true"></div><div class="shape shape-two" aria-hidden="true"></div><div class="shape shape-three" aria-hidden="true"></div>
+<div id="poster-content"><div id="poster-title"></div><div id="poster-subtitle"></div><div id="poster-body"></div><div id="poster-cta"></div></div>
+</article></div></div>
+<p id="preview-warning" role="status" class="warning"></p>
+<p class="note">预览为等比缩小的排版草稿；背景由渐变和几何元素组成，不是 AI 图片。空白字段使用提示文字，不属于客户确认文案。</p>
+<div class="actions"><button id="copy-prompt" type="button">复制背景图提示词</button><button id="download" type="button">导出方案（Markdown）</button></div>
+<p id="status" role="status" aria-live="polite"></p>
+<label for="copy-fallback" id="copy-label" hidden>自动复制不可用，请选中下方文字手动复制：</label><textarea id="copy-fallback" rows="5" readonly hidden></textarea>
+</section>
+<section class="card" aria-labelledby="result-title"><div class="section-title"><h2 id="result-title">03 / 完整制作方案</h2><button id="copy" type="button">复制完整方案</button></div>
+<p class="note">随需求和版式实时更新；导出内容与当前需求保持同步。</p>
+<details id="plan-details"><summary>展开六部分制作方案</summary><pre id="plan" tabindex="0" aria-label="完整制作方案"></pre></details>
+</section></div>
+</main><footer>本地规则生成，不调用付费 API。文案、素材授权与最终发布请人工确认。</footer>
+</body></html>
