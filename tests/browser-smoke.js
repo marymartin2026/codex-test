@@ -17,6 +17,7 @@ const { chromium } = require('playwright');
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(process.env.BASE_URL || 'http://127.0.0.1:8000');
+    await page.locator('#materials-panel,#ai-panel,#plan-panel').evaluateAll(items=>items.forEach(item=>item.open=true));
     assert.equal(await page.locator('#download').isDisabled(), true);
     await page.locator('#example').click();
     assert.match(await page.locator('#poster-title').textContent(), /把春天/);
@@ -29,7 +30,7 @@ const { chromium } = require('playwright');
       await page.locator('[name=width]').fill(String(width));
       await page.locator('[name=height]').fill(String(height));
       const bounds = await page.locator('#poster').boundingBox();
-      assert.ok(Math.abs((bounds.width / bounds.height) / (width / height) - 1) < .002, '画布应保持输入比例（允许亚像素舍入）');
+      assert.ok(Math.abs(width<height?bounds.width-bounds.height*width/height:bounds.height-bounds.width*height/width)<.03, '画布应保持输入比例（允许 CSS 亚像素舍入）');
     }
     await checkRatio(1080,1920);
     await checkRatio(1920,1080);

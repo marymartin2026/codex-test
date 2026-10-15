@@ -13,6 +13,7 @@ const {chromium}=require('playwright');
     page.on('pageerror',error=>errors.push(error.message));
     page.on('request',request=>{if(request.method()!=='GET')uploads.push(request.url());});
     await page.goto(process.env.BASE_URL||'http://127.0.0.1:8000');
+    await page.locator('#materials-panel,#ai-panel,#plan-panel').evaluateAll(items=>items.forEach(item=>item.open=true));
     await page.locator('#example').click();
     const designs=new Set();
     for(const id of ['text-image','top-image','hero-center','product','promotion','commerce','brand','chinese']){

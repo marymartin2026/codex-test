@@ -6,56 +6,59 @@
 <script src="planner.js" defer></script><script src="renderer.js" defer></script><script src="app.js" defer></script>
 </head>
 <body>
-<header><span class="badge">海报工作台 · 第三阶段</span><h1>填好需求，让海报初具模样。</h1><p>左侧填写需求，右侧实时预览。换种排版，再把方案带走。</p><p class="note">本地规则生成 · 无付费 API · 不上传客户信息 · 本地素材编辑与原尺寸导出</p></header>
-<main>
-<section class="card" aria-labelledby="input-title">
-<div class="section-title"><h2 id="input-title">01 / 填写需求</h2><button id="example" type="button">填入示例</button></div>
-<p class="note">带 * 为必填。尺寸单位为像素。</p>
+<header class="topbar">
+<div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><h1>海报工作台</h1><span class="local-tag">纯本地制作</span></div>
+<div class="history-tools"><button id="undo" type="button" title="撤销上一次编辑">↶ 撤销</button><button id="redo" type="button" title="重做上一次编辑">↷ 重做</button></div>
+<p id="toolbar-info">1080 × 1920 像素</p>
+<div class="top-actions"><button id="top-export-png" type="button">导出 PNG</button><button id="top-export-jpg" type="button" class="accent">导出 JPG</button></div>
+</header>
+<main class="workbench">
+<aside class="left-panel side-panel" aria-labelledby="input-title">
+<div class="panel-heading"><h2 id="input-title">需求与素材</h2><button id="example" type="button">填入示例</button></div>
+<div class="panel-scroll">
 <form id="brief-form">
+<details class="panel-section" id="basic-panel" open><summary>基础需求 <span>01</span></summary><div class="section-body"><p class="note">带 * 为必填，尺寸单位为像素。</p>
 <div class="row"><label>宽度（px）*<input name="width" type="number" min="100" max="20000" step="1" value="1080" required></label><label>高度（px）*<input name="height" type="number" min="100" max="20000" step="1" value="1920" required></label></div>
 <label>海报主题 *<input name="theme" maxlength="100" placeholder="例如：春日新品咖啡上市" required></label>
-<div class="row"><label>行业<select name="industry"><option>通用</option><option>餐饮美食</option><option>美妆护肤</option><option>教育培训</option><option>科技数码</option><option>生活零售</option></select></label><label>风格<select name="style"><option>简约现代</option><option>清新自然</option><option>高级质感</option><option>活力促销</option><option>科技未来</option><option>复古文艺</option></select></label></div>
-<label>商业版式<select name="layout"><option value="">跟随风格自动推荐</option></select></label>
-<label>色系<select name="palette"><option>自动推荐</option><option>暖橙奶油</option><option>自然绿白</option><option>黑金质感</option><option>蓝白科技</option><option>柔和粉紫</option></select></label>
-<label>主标题<input name="title" maxlength="160" placeholder="客户原文；留空则提供待确认备选"></label>
+<label>行业<select name="industry"><option>通用</option><option>餐饮美食</option><option>美妆护肤</option><option>教育培训</option><option>科技数码</option><option>生活零售</option></select></label></div></details>
+<details class="panel-section" id="copy-panel" open><summary>文案内容 <span>02</span></summary><div class="section-body"><label>主标题<input name="title" maxlength="160" placeholder="客户原文；留空则提供待确认备选"></label>
 <label>副标题<input name="subtitle" maxlength="240" placeholder="例如：一杯唤醒春日灵感"></label>
 <label>正文文案<textarea name="body" maxlength="3000" rows="4" placeholder="已确认的卖点、价格、日期、地点等"></textarea></label>
 <label>行动引导<input name="cta" maxlength="160" placeholder="例如：到店品尝 / 扫码了解详情"></label>
-<label>目标受众与投放渠道<input name="audience" maxlength="300" placeholder="例如：年轻上班族，朋友圈与门店电子屏"></label>
-<label>其他要求<textarea name="notes" maxlength="1500" rows="3" placeholder="Logo、联系方式、必须保留的信息、禁用元素等"></textarea></label>
-<button class="primary" type="submit">查看完整制作方案 ↓</button>
+</div></details>
 </form>
-<section class="editor-section" aria-labelledby="assets-title"><h2 id="assets-title">客户素材</h2>
-<p class="note">支持 PNG、JPG、WebP，每张不超过 15 MB、解码后不超过 2400 万像素，最多 20 张。素材仅保留在当前浏览器页面，刷新会丢失。</p>
+<details class="panel-section" id="materials-panel"><summary>客户素材 <span>03</span></summary><div class="section-body"><p class="note">支持 PNG、JPG、WebP，每张不超过 15 MB、解码后不超过 2400 万像素，最多 20 张。素材仅保留在当前浏览器页面，刷新会丢失。</p>
 <label>素材用途<select id="asset-kind"><option value="product">产品图</option><option value="person">人物图</option><option value="logo">Logo</option><option value="qr">二维码</option><option value="reference">其他参考素材</option></select></label>
 <label>添加素材（可多选）<input id="asset-upload" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
 <p id="asset-status" class="note" role="status"></p><div id="asset-list"></div>
-<fieldset id="asset-controls" disabled><legend>选中素材调整</legend><p id="selected-name" class="note">先上传并选择素材</p>
+<p class="note">点击素材选中后，右侧可调整位置、大小和层级。也可直接拖动或拖右下角圆点缩放。</p></div></details>
+<details class="panel-section" id="notes-panel"><summary>其他要求 <span>04</span></summary><div class="section-body"><label>目标受众与投放渠道<input name="audience" form="brief-form" maxlength="300" placeholder="例如：年轻上班族，朋友圈与门店电子屏"></label>
+<label>其他要求<textarea name="notes" form="brief-form" maxlength="1500" rows="3" placeholder="Logo、联系方式、必须保留的信息、禁用元素等"></textarea></label>
+</div></details>
+<button id="show-plan" type="submit" form="brief-form" class="full-width">查看完整制作方案</button>
+</div></aside>
+<section class="canvas-panel" aria-labelledby="preview-title">
+<div class="canvas-toolbar"><div><h2 id="preview-title">海报画布</h2><p id="canvas-info" class="note"></p></div><label class="zoom-control">预览缩放<select id="preview-zoom"><option value="fit">适应画布</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option></select></label></div>
+<div id="preview-stage" class="preview-stage"><div id="canvas-frame"><article id="poster" aria-label="海报排版预览"><canvas id="poster-canvas" aria-label="可拖动素材的海报画布"></canvas><div class="sr-only"><span id="poster-title"></span><span id="poster-subtitle"></span><span id="poster-body"></span><span id="poster-cta"></span></div></article></div></div>
+<div class="canvas-footer"><p id="preview-warning" role="status" class="warning"></p><p id="status" role="status" aria-live="polite">填写需求，实时开始设计。</p><p class="note">缩放仅影响查看 · 导出使用实际尺寸 · 拖动画布滚动条查看放大后的内容</p></div>
+</section>
+<aside class="right-panel side-panel" aria-labelledby="design-title">
+<div class="panel-heading"><h2 id="design-title">设计与交付</h2><span class="local-tag">实时同步</span></div>
+<div class="panel-scroll">
+<details class="panel-section" id="design-panel" open><summary>版式与视觉</summary><div class="section-body"><label>商业版式<select name="layout" form="brief-form"><option value="">跟随风格自动推荐</option></select></label>
+<label>风格<select name="style" form="brief-form"><option>简约现代</option><option>清新自然</option><option>高级质感</option><option>活力促销</option><option>科技未来</option><option>复古文艺</option></select></label><label>色系<select name="palette" form="brief-form"><option>自动推荐</option><option>暖橙奶油</option><option>自然绿白</option><option>黑金质感</option><option>蓝白科技</option><option>柔和粉紫</option></select></label>
+<label>标题字体<select name="font" form="brief-form"><option value="auto">跟随风格</option><option value="sans">现代黑体</option><option value="serif">经典宋体</option></select></label><button id="relayout" type="button" class="full-width">↻ 重新排版</button><p class="note">模板调整会重新安放产品、人物及参考图；Logo、二维码保留位置。</p></div></details>
+<details class="panel-section" id="selection-panel" open hidden><summary>素材调整</summary><div class="section-body"><fieldset id="asset-controls" disabled><legend>选中素材调整</legend><p id="selected-name" class="note">先上传并选择素材</p>
 <label>大小（画布宽度 %）<input id="asset-size" type="range" min="3" max="90" value="30"></label>
-<div class="row"><label>水平位置 %<input id="asset-x" type="number" min="0" max="100" step="1"></label><label>垂直位置 %<input id="asset-y" type="number" min="0" max="100" step="1"></label></div>
-<button id="asset-delete" type="button">删除选中素材</button></fieldset>
-<p class="note">点击画布中的素材选中，拖动移动；拖动右下角圆点缩放。也可使用上方控件。应用模板或重新排版会重新安放产品、人物和参考图；Logo 与二维码保留位置。参考素材同样参与导出，选中后可删除。</p></section>
-<section class="editor-section" aria-labelledby="ai-title"><h2 id="ai-title">AI 背景制作</h2><p class="note">① 复制中文提示词 → ② 在豆包、即梦或可灵中自行生成 → ③ 上传背景图。本站不调用 AI 服务。</p>
-<textarea id="ai-prompt" readonly rows="7" aria-label="完整中文背景提示词"></textarea>
-<label>上传 AI 背景图<input id="background-upload" type="file" accept="image/png,image/jpeg,image/webp"></label><p class="note">背景等比铺满并居中裁切，不拉伸；请先生成相近比例。</p><button id="background-remove" type="button" disabled>移除 AI 背景，恢复配色背景</button><p id="background-status" class="note" role="status"></p></section>
-</section>
-<div class="workspace">
-<section class="card preview-card" aria-labelledby="preview-title">
-<div class="section-title"><h2 id="preview-title">02 / 实时海报预览</h2><button id="relayout" type="button">重新排版 ↻</button></div>
-<p id="canvas-info" class="note"></p>
-<div id="preview-stage" class="preview-stage"><div id="canvas-frame"><article id="poster" aria-label="海报排版预览">
-<canvas id="poster-canvas" aria-label="可拖动素材的海报画布"></canvas>
-<div class="sr-only" aria-live="off"><span id="poster-title"></span><span id="poster-subtitle"></span><span id="poster-body"></span><span id="poster-cta"></span></div>
-</article></div></div>
-<p id="preview-warning" role="status" class="warning"></p>
-<p class="note">预览按画布比例缩小显示；PNG / JPG 按填写的实际像素导出，不含选择框。空白字段使用提示文字，不属于客户确认文案。</p>
-<div class="actions"><button id="export-png" type="button">导出 PNG</button><button id="export-jpg" type="button">导出 JPG</button><button id="copy-prompt" type="button">复制背景图提示词</button><button id="download" type="button">导出方案（Markdown）</button></div>
-<p class="note">图片导出上限：单边 8192 像素且总计不超过 2400 万像素。超出时会提示调整，不会偷偷降低分辨率。交付前请扫码核验二维码。</p><p id="export-status" role="status" class="note"></p><p id="status" role="status" aria-live="polite"></p>
-<label for="copy-fallback" id="copy-label" hidden>自动复制不可用，请选中下方文字手动复制：</label><textarea id="copy-fallback" rows="5" readonly hidden></textarea>
-</section>
-<section class="card" aria-labelledby="result-title"><div class="section-title"><h2 id="result-title">03 / 完整制作方案</h2><button id="copy" type="button">复制完整方案</button></div>
-<p class="note">随需求和版式实时更新；导出内容与当前需求保持同步。</p>
-<details id="plan-details"><summary>展开六部分制作方案</summary><pre id="plan" tabindex="0" aria-label="完整制作方案"></pre></details>
-</section></div>
-</main><footer>本地规则生成，不调用付费 API。文案、素材授权与最终发布请人工确认。</footer>
+<div class="row"><label>X 位置（%）<input id="asset-x" type="number" min="0" max="100" step="1"></label><label>Y 位置（%）<input id="asset-y" type="number" min="0" max="100" step="1"></label></div>
+<button id="asset-delete" type="button">删除选中素材</button><div class="row"><button id="asset-front" type="button">置于顶层</button><button id="asset-back" type="button">置于底层</button></div></fieldset>
+</div></details>
+<details class="panel-section" id="ai-panel"><summary>AI 背景制作</summary><div class="section-body"><p class="note">复制提示词 → 在豆包 / 即梦 / 可灵中自行生成 → 上传背景。本站不调用 AI 服务。</p><textarea id="ai-prompt" readonly rows="7" aria-label="完整中文背景提示词"></textarea>
+<label>上传 AI 背景图<input id="background-upload" type="file" accept="image/png,image/jpeg,image/webp"></label><p class="note">背景等比铺满并居中裁切，不拉伸；请先生成相近比例。</p><button id="background-remove" type="button" disabled>移除 AI 背景，恢复配色背景</button><p id="background-status" class="note" role="status"></p><button id="copy-prompt" type="button" class="full-width">复制背景图提示词</button></div></details>
+<details class="panel-section" id="plan-panel"><summary id="result-title">完整制作方案</summary><div class="section-body"><div class="actions"><button id="copy" type="button">复制完整方案</button><button id="download" type="button">导出方案（Markdown）</button></div><details id="plan-details"><summary>展开六部分制作方案</summary><pre id="plan" tabindex="0" aria-label="完整制作方案"></pre></details></div></details>
+<label for="copy-fallback" id="copy-label" hidden>自动复制不可用，请选中下方文字手动复制：</label><textarea id="copy-fallback" rows="4" readonly hidden></textarea>
+</div>
+<div class="export-dock"><div class="actions"><button id="export-png" type="button">导出 PNG</button><button id="export-jpg" type="button" class="accent">导出 JPG</button></div><p id="export-status" role="status" class="note"></p><details><summary>导出与素材说明</summary><p class="note">按实际像素导出，不含选择框。上限：单边 8192 像素、总计 2400 万像素。空字段会显示提示文案，交付前请核对并扫码验收。字体取决于设备，素材刷新后不保留。</p></details></div>
+</aside>
+</main><footer>不使用付费 API · 客户素材仅在本浏览器处理 · 刷新前请及时导出</footer>
 </body></html>

@@ -52,3 +52,11 @@ test('包含八种商业模板，显式选择与中文提示词保留文案', ()
   const prompt=backgroundPrompt({...brief,title:'春天上市',subtitle:'青柠限定',body:'活动日期待确认',cta:'到店了解'});
   for(const text of ['春天上市','青柠限定','活动日期待确认','到店了解','禁止把这些文字绘入背景'])assert.ok(prompt.includes(text));
 });
+
+test('手动字体选择作用于方案，不改变后续自动字体',()=>{
+  const {design,generate}=require('../web/planner.js');
+  assert.equal(design({...brief,style:'简约现代',font:'serif'}).settings.font,'serif');
+  assert.match(generate({...brief,style:'简约现代',font:'serif'}),/标题可选思源宋体/);
+  assert.equal(design({...brief,style:'简约现代',font:'auto'}).settings.font,'sans');
+  assert.equal(design({...brief,style:'高级质感',font:'sans'}).settings.font,'sans');
+});

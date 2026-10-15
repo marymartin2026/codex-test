@@ -51,7 +51,8 @@ const PosterPlanner = (() => {
     const industry = Object.hasOwn(industries, input.industry) ? input.industry : '通用';
     const style = Object.hasOwn(styles, input.style) ? input.style : '简约现代';
     const palette = Object.hasOwn(palettes, input.palette) ? input.palette : industries[industry][0];
-    const settings = styleSettings[style];
+    const settings = {...styleSettings[style]};
+    if(['sans','serif'].includes(input.font))settings.font=input.font;
     const offset = Number.isInteger(variant) ? ((variant % layouts.length) + layouts.length) % layouts.length : 0;
     return { width, height, industry, style, palette, colors: palettes[palette], settings,
       layout: layouts[((layouts.findIndex(item => item.id === input.layout) >= 0 ? layouts.findIndex(item => item.id === input.layout) : settings.layout) + offset) % layouts.length] };
@@ -72,7 +73,7 @@ const PosterPlanner = (() => {
     const subtitle = clean('subtitle') || '【待补充】一句话说明核心价值，不编造产品功效或优惠。';
     const body = clean('body') || '【待补充】已确认的产品卖点、活动时间、地点、价格或联系方式。';
     const cta = clean('cta') || '【备选待确认】了解详情（入口待提供）';
-    const fonts = style === '复古文艺' || style === '高级质感' ? '标题可选思源宋体（Noto Serif CJK SC）；正文可选思源黑体（Noto Sans CJK SC）' : '标题与正文可选思源黑体（Noto Sans CJK SC），通过字重区分层级';
+    const fonts = model.settings.font === 'serif' || (input.font !== 'sans' && model.layout.id === 'chinese') ? '标题可选思源宋体（Noto Serif CJK SC）；正文可选思源黑体（Noto Sans CJK SC）' : '标题与正文可选思源黑体（Noto Sans CJK SC），通过字重区分层级';
     return `# ${theme}｜海报制作方案
 
 ## 1. 客户需求分析

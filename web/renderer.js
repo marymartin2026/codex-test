@@ -90,7 +90,7 @@ const PosterRenderer = (() => {
       body:brief.body.trim()||'在左侧输入客户文案\n这里将实时呈现正文排版',
       cta:brief.cta.trim()||'行动引导 · 待客户确认'
     };
-    const font=model.layout.id==='chinese'?'serif':model.settings.font;
+    const font=brief.font==='sans'?'sans':brief.font==='serif'?'serif':model.layout.id==='chinese'?'serif':model.settings.font;
     const split=['hero-center','promotion','commerce'].includes(model.layout.id);
     let warning='';
     function group(keys, box) {
@@ -132,7 +132,7 @@ const PosterRenderer = (() => {
     if(selection) {
       const selected=assets.find(asset=>asset.id===selectedId);
       if(selected){
-        const b=assetBox(selected,model),px=W/canvas.width;
+        const b=assetBox(selected,model),px=W/(canvas.clientWidth||canvas.width);
         ctx.strokeStyle='#1474E5';ctx.lineWidth=2*px;ctx.strokeRect(b.x,b.y,b.w,b.h);
         ctx.fillStyle='#1474E5';ctx.beginPath();ctx.arc(b.x+b.w,b.y+b.h,7*px,0,Math.PI*2);ctx.fill();
       }

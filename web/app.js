@@ -16,6 +16,52 @@ let currentModel = null;
 let currentPlan = '';
 let currentPrompt = '';
 const readBrief = () => Object.fromEntries(new FormData(form));
+// 历史仅保存轻量状态和已解码图片引用，不重复拷贝图片像素。
+const history = [];
+const imageUrls = new Set();
+let historyIndex = -1;
+let lastEditKey = '';
+let lastEditAt = 0;
+function captureState() {
+  return {brief:readBrief(),variant,assets:assets.map(asset=>({...asset})),background,selectedId};
+}
+function stateKey(state) {
+  return JSON.stringify({brief:state.brief,variant:state.variant,
+    assets:state.assets.map(({image,...rest})=>rest),background:state.background?.url||null});
+}
+function collectImageUrls() {
+  const used = new Set(assets.map(asset=>asset.url));
+  if(background)used.add(background.url);
+  for(const state of history){for(const asset of state.assets)used.add(asset.url);if(state.background)used.add(state.background.url);}
+  for(const url of imageUrls)if(!used.has(url)){URL.revokeObjectURL(url);imageUrls.delete(url);}
+}
+function syncHistoryButtons() {
+  document.querySelector('#undo').disabled=historyIndex<=0||loadingImages>0||!!drag;
+  document.querySelector('#redo').disabled=historyIndex>=history.length-1||loadingImages>0||!!drag;
+}
+function commitHistory(key='') {
+  const state=captureState();
+  if(historyIndex>=0&&stateKey(state)===stateKey(history[historyIndex])){syncHistoryButtons();return;}
+  const now=Date.now();
+  const merge=key&&key===lastEditKey&&now-lastEditAt<700&&historyIndex>0&&historyIndex===history.length-1;
+  history.splice(historyIndex+1);
+  if(merge)history[historyIndex]=state;
+  else {history.push(state);if(history.length>51)history.shift();historyIndex=history.length-1;}
+  lastEditKey=key;lastEditAt=now;collectImageUrls();syncHistoryButtons();
+}
+function restoreHistory(direction) {
+  const next=historyIndex+direction;
+  if(loadingImages||drag||next<0||next>=history.length)return;
+  historyIndex=next;const state=history[historyIndex];
+  for(const [name,value] of Object.entries(state.brief))form.elements.namedItem(name).value=value;
+  variant=state.variant;assets.splice(0,assets.length,...state.assets.map(asset=>({...asset})));
+  background=state.background;selectedId=state.selectedId;
+  lastEditKey='';render();renderAssetList();syncHistoryButtons();
+  document.querySelector('#background-remove').disabled=!background;
+  document.querySelector('#background-status').textContent=background?`当前背景：${background.name}`:'使用渐变与几何背景';
+  status.textContent=direction<0?'已撤销上一次编辑。':'已重做上一次编辑。';
+}
+
 
 function scene() {
   return {model:currentModel, brief:readBrief(), assets, background:background?.image, selectedId};
@@ -23,21 +69,24 @@ function scene() {
 function fitPreview() {
   if (!currentModel) return;
   const {width,height}=currentModel;
-  const scale=Math.min(Math.max(1,stage.clientWidth-32)/width,Math.min(600,Math.max(240,window.innerHeight*.46))/height);
+  const zoom=document.querySelector('#preview-zoom').value;
+  const autoScale=Math.min(Math.max(1,stage.clientWidth-48)/width,Math.max(1,stage.clientHeight-48)/height);
+  const scale=zoom==='fit'?autoScale:Number(zoom);
   frame.style.width=`${width*scale}px`;
   frame.style.height=`${height*scale}px`;
   poster.style.width=`${width*scale}px`;
   poster.style.height=`${height*scale}px`;
   poster.style.transform='none';
   for(const asset of assets) PosterRenderer.constrain(asset,currentModel);
-  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const dpr=Math.min(window.devicePixelRatio||1,2,4096/(width*scale),4096/(height*scale),Math.sqrt(8000000/(width*height*scale*scale)));
   const result=PosterRenderer.draw(canvas,scene(),{width:Math.max(1,Math.round(width*scale*dpr)),height:Math.max(1,Math.round(height*scale*dpr)),selection:true});
   document.querySelector('#preview-warning').textContent=result.warning;
   for(const [key,text] of Object.entries(result.text)) document.getElementById(`poster-${key}`).textContent=text;
   syncAssetControls();
 }
 function syncExportButtons() {
-  for(const id of ['export-png','export-jpg'])document.getElementById(id).disabled=!currentModel||loadingImages>0||exporting;
+  syncHistoryButtons();
+  for(const id of ['export-png','export-jpg','top-export-png','top-export-jpg'])document.getElementById(id).disabled=!currentModel||loadingImages>0||exporting;
 }
 
 function render() {
@@ -67,6 +116,7 @@ function render() {
       cta: brief.cta.trim() || '行动引导 · 待客户确认'
     };
     for (const [key, text] of Object.entries(fields)) document.getElementById(`poster-${key}`).textContent = text;
+    document.querySelector('#toolbar-info').textContent = `${model.width} × ${model.height} 像素 · ${model.layout.name}`;
     document.querySelector('#canvas-info').textContent = `${model.width} × ${model.height} 像素 · ${model.layout.name} · ${model.style} · ${model.palette}`;
     frame.hidden = false;
     syncExportButtons();
@@ -89,20 +139,25 @@ function render() {
     document.querySelector('#ai-prompt').value = '';
     frame.hidden = true;
     plan.textContent = '';
+    document.querySelector('#toolbar-info').textContent = '请填写有效尺寸';
     document.querySelector('#canvas-info').textContent = '请填写有效的画布尺寸';
+    syncAssetControls();
     document.querySelector('#preview-warning').textContent = '';
     status.textContent = error.message;
   }
 }
 
-form.addEventListener('input', event => {
+document.addEventListener('input', event => {
+  if(event.target.form!==form)return;
   if (['style','layout'].includes(event.target.name)) variant = 0;
   render();
   if(event.target.name==='layout')applyLayoutPositions();
+  commitHistory(`brief:${event.target.name}`);
 });
 form.addEventListener('submit', event => {
   event.preventDefault();
   render();
+  document.querySelector('#plan-panel').open = true;
   document.querySelector('#plan-details').open = true;
   document.querySelector('#result-title').scrollIntoView({ block: 'start' });
 });
@@ -111,6 +166,7 @@ document.querySelector('#example').addEventListener('click', () => {
   for (const [name,value] of Object.entries(example)) form.elements.namedItem(name).value = value;
   variant = 0;
   render();
+  commitHistory();
 });
 function applyLayoutPositions(){
   if(!currentModel)return;
@@ -121,12 +177,14 @@ document.querySelector('#relayout').addEventListener('click', () => {
   variant = (variant + 1) % PosterPlanner.layouts.length;
   render();
   applyLayoutPositions();
+  commitHistory();
 });
 async function copyText(text, success) {
   try {
     await navigator.clipboard.writeText(text);
     status.textContent = success;
   } catch {
+    document.querySelector('#ai-panel').open=true;
     const fallback = document.querySelector('#copy-fallback');
     fallback.value = text;
     fallback.hidden = false;
@@ -158,6 +216,7 @@ async function decodeLocal(file) {
   try{
     await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error('图片无法解码，请换一张图片。'));image.src=url;});
     if(!image.naturalWidth||image.naturalWidth*image.naturalHeight>24000000)throw new Error('图片解码后不能超过 2400 万像素，请先缩小原图。');
+    imageUrls.add(url);
     return {image,url};
   }catch(error){URL.revokeObjectURL(url);throw error;}
 }
@@ -176,6 +235,7 @@ function renderAssetList(){
 }
 function syncAssetControls(){
   const asset=assets.find(item=>item.id===selectedId);
+  document.querySelector('#selection-panel').hidden=!asset;
   document.querySelector('#asset-controls').disabled=!asset||!currentModel;
   document.querySelector('#selected-name').textContent=asset?asset.name:'先上传并选择素材';
   if(asset){
@@ -202,19 +262,20 @@ document.querySelector('#asset-upload').addEventListener('change',async event=>{
   }finally{
     loadingImages--;syncExportButtons();event.target.disabled=false;event.target.value='';renderAssetList();fitPreview();
     document.querySelector('#asset-status').textContent=messages.join('；');
+    commitHistory();
   }
 });
 for(const [id,prop] of [['asset-size','w'],['asset-x','x'],['asset-y','y']]){
   document.getElementById(id).addEventListener('input',event=>{
     const asset=assets.find(item=>item.id===selectedId),number=Number(event.target.value);
-    if(asset&&currentModel&&Number.isFinite(number)){asset[prop]=number/100;PosterRenderer.constrain(asset,currentModel);fitPreview();}
+    if(asset&&currentModel&&Number.isFinite(number)){asset[prop]=number/100;PosterRenderer.constrain(asset,currentModel);fitPreview();commitHistory(`asset:${asset.id}:${prop}`);}
   });
 }
 function deleteSelected(){
   const index=assets.findIndex(item=>item.id===selectedId);
   if(index<0)return;
-  URL.revokeObjectURL(assets[index].url);assets.splice(index,1);selectedId=null;
-  renderAssetList();fitPreview();document.querySelector('#asset-status').textContent='素材已删除。';
+  assets.splice(index,1);selectedId=null;
+  renderAssetList();fitPreview();commitHistory();document.querySelector('#asset-status').textContent='素材已删除。';
 }
 document.querySelector('#asset-delete').addEventListener('click',deleteSelected);
 canvas.tabIndex=0;
@@ -244,7 +305,9 @@ canvas.addEventListener('pointermove',event=>{
   else{asset.x=drag.x+(p.x-drag.start.x)/currentModel.width;asset.y=drag.y+(p.y-drag.start.y)/currentModel.height;}
   PosterRenderer.constrain(asset,currentModel);fitPreview();
 });
-for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{drag=null;});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{
+  if(drag){drag=null;commitHistory();}
+});
 
 document.querySelector('#background-upload').addEventListener('change',async event=>{
   const file=event.target.files[0];if(!file)return;
@@ -252,18 +315,17 @@ document.querySelector('#background-upload').addEventListener('change',async eve
   document.querySelector('#background-status').textContent='正在本地读取背景…';
   try{
     const loaded=await decodeLocal(file);
-    if(background)URL.revokeObjectURL(background.url);
     background={...loaded,name:file.name};
     document.querySelector('#background-status').textContent=`背景已应用：${file.name}（居中裁切）`;
     document.querySelector('#background-remove').disabled=false;
     fitPreview();
   }catch(error){document.querySelector('#background-status').textContent=error.message;}
-  finally{loadingImages--;syncExportButtons();event.target.disabled=false;event.target.value='';}
+  finally{loadingImages--;syncExportButtons();event.target.disabled=false;event.target.value='';commitHistory();}
 });
 document.querySelector('#background-remove').addEventListener('click',()=>{
-  if(background)URL.revokeObjectURL(background.url);background=null;
+  background=null;
   document.querySelector('#background-remove').disabled=true;
-  document.querySelector('#background-status').textContent='已恢复渐变与几何背景。';fitPreview();
+  document.querySelector('#background-status').textContent='已恢复渐变与几何背景。';fitPreview();commitHistory();
 });
 function downloadBlob(blob,name){
   const url=URL.createObjectURL(blob),link=document.createElement('a');
@@ -294,8 +356,26 @@ async function exportImage(type){
 document.querySelector('#export-png').addEventListener('click',()=>exportImage('png'));
 document.querySelector('#export-jpg').addEventListener('click',()=>exportImage('jpg'));
 for(const layout of PosterPlanner.layouts){const option=document.createElement('option');option.value=layout.id;option.textContent=layout.name;form.elements.namedItem('layout').appendChild(option);}
+document.querySelector('#top-export-png').addEventListener('click',()=>exportImage('png'));
+document.querySelector('#top-export-jpg').addEventListener('click',()=>exportImage('jpg'));
+document.querySelector('#preview-zoom').addEventListener('change',()=>{fitPreview();stage.scrollTo(0,0);});
+document.querySelector('#undo').addEventListener('click',()=>restoreHistory(-1));
+document.querySelector('#redo').addEventListener('click',()=>restoreHistory(1));
+for(const [id,front] of [['asset-front',true],['asset-back',false]]){
+  document.getElementById(id).addEventListener('click',()=>{
+    const index=assets.findIndex(asset=>asset.id===selectedId);if(index<0)return;
+    const [asset]=assets.splice(index,1);if(front)assets.push(asset);else assets.unshift(asset);
+    renderAssetList();fitPreview();commitHistory();status.textContent=front?'素材已置于顶层。':'素材已置于底层。';
+  });
+}
+document.addEventListener('keydown',event=>{
+  if(!(event.ctrlKey||event.metaKey)||event.altKey||event.target.matches('input,textarea,[contenteditable=true]'))return;
+  if(event.key.toLowerCase()==='z'){event.preventDefault();restoreHistory(event.shiftKey?1:-1);}
+  else if(event.key.toLowerCase()==='y'){event.preventDefault();restoreHistory(1);}
+});
 new ResizeObserver(fitPreview).observe(stage);
 render();
+commitHistory();
 
 document.fonts.ready.then(fitPreview);
 window.addEventListener('resize',fitPreview);
