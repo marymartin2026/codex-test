@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test poster planning rules
-        run: node --test tests/planner.test.js
+        run: node --test tests/*.test.js
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static website

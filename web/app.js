@@ -2,7 +2,13 @@ const form = document.querySelector('#brief-form');
 const plan = document.querySelector('#plan');
 const status = document.querySelector('#status');
 const poster = document.querySelector('#poster');
-const content = document.querySelector('#poster-content');
+const canvas = document.querySelector('#poster-canvas');
+const assets = [];
+let background = null;
+let selectedId = null;
+let nextAssetId = 1;
+let loadingImages = 0;
+let exporting = false;
 const stage = document.querySelector('#preview-stage');
 const frame = document.querySelector('#canvas-frame');
 let variant = 0;
@@ -11,24 +17,27 @@ let currentPlan = '';
 let currentPrompt = '';
 const readBrief = () => Object.fromEntries(new FormData(form));
 
+function scene() {
+  return {model:currentModel, brief:readBrief(), assets, background:background?.image, selectedId};
+}
 function fitPreview() {
   if (!currentModel) return;
-  const { width, height } = currentModel;
-  const scale = Math.min((stage.clientWidth - 32) / width, 600 / height);
-  frame.style.width = `${width * scale}px`;
-  frame.style.height = `${height * scale}px`;
-  poster.style.transform = `scale(${scale})`;
-  // 保留全部原文；先缩小字号，仍放不下时明确提示，不默默截掉内容。
-  let fit = 1;
-  content.style.setProperty('--fit', fit);
-  while (content.scrollHeight > content.clientHeight + 1 && fit > .45) {
-    fit = Math.max(.45, fit - .05);
-    content.style.setProperty('--fit', fit);
-  }
-  const overflow = content.scrollHeight > content.clientHeight + 1;
-  document.querySelector('#preview-warning').textContent = overflow
-    ? '当前尺寸或文案过长，部分内容超出画布。请精简文案、调整尺寸或重新排版；导出方案仍保留全部原文。'
-    : fit < .99 ? '为容纳文案，预览字号已自动缩小。请在实际使用尺寸下检查可读性。' : '';
+  const {width,height}=currentModel;
+  const scale=Math.min(Math.max(1,stage.clientWidth-32)/width,Math.min(600,Math.max(240,window.innerHeight*.46))/height);
+  frame.style.width=`${width*scale}px`;
+  frame.style.height=`${height*scale}px`;
+  poster.style.width=`${width*scale}px`;
+  poster.style.height=`${height*scale}px`;
+  poster.style.transform='none';
+  for(const asset of assets) PosterRenderer.constrain(asset,currentModel);
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const result=PosterRenderer.draw(canvas,scene(),{width:Math.max(1,Math.round(width*scale*dpr)),height:Math.max(1,Math.round(height*scale*dpr)),selection:true});
+  document.querySelector('#preview-warning').textContent=result.warning;
+  for(const [key,text] of Object.entries(result.text)) document.getElementById(`poster-${key}`).textContent=text;
+  syncAssetControls();
+}
+function syncExportButtons() {
+  for(const id of ['export-png','export-jpg'])document.getElementById(id).disabled=!currentModel||loadingImages>0||exporting;
 }
 
 function render() {
@@ -42,8 +51,7 @@ function render() {
     const model = PosterPlanner.design(brief, variant);
     currentModel = model;
     const [bg, ink, accent] = model.colors;
-    poster.style.width = `${model.width}px`;
-    poster.style.height = `${model.height}px`;
+
     poster.style.setProperty('--bg', bg);
     poster.style.setProperty('--ink', ink);
     poster.style.setProperty('--accent', accent);
@@ -61,8 +69,10 @@ function render() {
     for (const [key, text] of Object.entries(fields)) document.getElementById(`poster-${key}`).textContent = text;
     document.querySelector('#canvas-info').textContent = `${model.width} × ${model.height} 像素 · ${model.layout.name} · ${model.style} · ${model.palette}`;
     frame.hidden = false;
+    syncExportButtons();
     fitPreview();
     if (!brief.theme.trim()) {
+      document.querySelector('#ai-prompt').value = '填写主题后，这里将生成完整中文背景图提示词。';
       plan.textContent = '填写海报主题后，完整方案将自动生成。';
       status.textContent = '可以先调整预览；填写主题后即可复制提示词和导出方案。';
       return;
@@ -70,10 +80,13 @@ function render() {
     currentPlan = PosterPlanner.generate(brief, variant);
     currentPrompt = PosterPlanner.backgroundPrompt(brief, variant);
     plan.textContent = currentPlan;
+    document.querySelector('#ai-prompt').value = currentPrompt;
     for (const id of ['copy', 'copy-prompt', 'download']) document.getElementById(id).disabled = false;
     status.textContent = '预览与方案已同步更新。';
   } catch (error) {
     currentModel = null;
+    syncExportButtons();
+    document.querySelector('#ai-prompt').value = '';
     frame.hidden = true;
     plan.textContent = '';
     document.querySelector('#canvas-info').textContent = '请填写有效的画布尺寸';
@@ -83,8 +96,9 @@ function render() {
 }
 
 form.addEventListener('input', event => {
-  if (event.target.name === 'style') variant = 0;
+  if (['style','layout'].includes(event.target.name)) variant = 0;
   render();
+  if(event.target.name==='layout')applyLayoutPositions();
 });
 form.addEventListener('submit', event => {
   event.preventDefault();
@@ -98,7 +112,16 @@ document.querySelector('#example').addEventListener('click', () => {
   variant = 0;
   render();
 });
-document.querySelector('#relayout').addEventListener('click', () => { variant = (variant + 1) % 4; render(); });
+function applyLayoutPositions(){
+  if(!currentModel)return;
+  for(const asset of assets){if(!['logo','qr'].includes(asset.kind))Object.assign(asset,PosterRenderer.defaultPosition(asset.kind,currentModel));}
+  fitPreview();
+}
+document.querySelector('#relayout').addEventListener('click', () => {
+  variant = (variant + 1) % PosterPlanner.layouts.length;
+  render();
+  applyLayoutPositions();
+});
 async function copyText(text, success) {
   try {
     await navigator.clipboard.writeText(text);
@@ -121,5 +144,158 @@ document.querySelector('#download').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   status.textContent = '已导出当前需求和版式的 Markdown 方案。';
 });
+
+
+// 所有上传均通过本地 Blob URL 解码，不读取远程素材。
+async function decodeLocal(file) {
+  if(file.size>15*1024*1024)throw new Error('每张图片不能超过 15 MB。');
+  const bytes=new Uint8Array(await file.slice(0,12).arrayBuffer());
+  const png=bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71;
+  const jpg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+  const webp=String.fromCharCode(...bytes.slice(0,4))==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WEBP';
+  if(!png&&!jpg&&!webp)throw new Error('请使用有效 PNG、JPG 或 WebP 图片（暂不支持 SVG、GIF）。');
+  const url=URL.createObjectURL(file),image=new Image();
+  try{
+    await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error('图片无法解码，请换一张图片。'));image.src=url;});
+    if(!image.naturalWidth||image.naturalWidth*image.naturalHeight>24000000)throw new Error('图片解码后不能超过 2400 万像素，请先缩小原图。');
+    return {image,url};
+  }catch(error){URL.revokeObjectURL(url);throw error;}
+}
+const kindNames={product:'产品图',person:'人物图',logo:'Logo',qr:'二维码',reference:'参考素材'};
+function renderAssetList(){
+  const list=document.querySelector('#asset-list');list.replaceChildren();
+  for(const asset of assets){
+    const button=document.createElement('button');button.type='button';
+    button.className=asset.id===selectedId?'asset-item selected':'asset-item';
+    button.textContent=`${kindNames[asset.kind]} · ${asset.name}`;
+    button.setAttribute('aria-pressed',String(asset.id===selectedId));
+    button.addEventListener('click',()=>{selectedId=asset.id;renderAssetList();fitPreview();});
+    list.appendChild(button);
+  }
+  syncAssetControls();
+}
+function syncAssetControls(){
+  const asset=assets.find(item=>item.id===selectedId);
+  document.querySelector('#asset-controls').disabled=!asset||!currentModel;
+  document.querySelector('#selected-name').textContent=asset?asset.name:'先上传并选择素材';
+  if(asset){
+    document.querySelector('#asset-size').value=asset.w*100;
+    document.querySelector('#asset-x').value=Math.round(asset.x*100);
+    document.querySelector('#asset-y').value=Math.round(asset.y*100);
+  }
+}
+document.querySelector('#asset-upload').addEventListener('change',async event=>{
+  const files=Array.from(event.target.files),kind=document.querySelector('#asset-kind').value;
+  const messages=[];event.target.disabled=true;loadingImages++;syncExportButtons();
+  document.querySelector('#asset-status').textContent='正在本地读取素材…';
+  try{
+    for(const file of files){
+      if(assets.length>=20){messages.push('最多保留 20 张素材，请先删除部分素材。');break;}
+      try{
+        const loaded=await decodeLocal(file);
+        const model=currentModel||PosterPlanner.design({width:1080,height:1920});
+        const asset={...loaded,id:nextAssetId++,kind,name:file.name,...PosterRenderer.defaultPosition(kind,model)};
+        PosterRenderer.constrain(asset,model);assets.push(asset);selectedId=asset.id;
+        messages.push(`${file.name} 已添加`);
+      }catch(error){messages.push(`${file.name}：${error.message}`);}
+    }
+  }finally{
+    loadingImages--;syncExportButtons();event.target.disabled=false;event.target.value='';renderAssetList();fitPreview();
+    document.querySelector('#asset-status').textContent=messages.join('；');
+  }
+});
+for(const [id,prop] of [['asset-size','w'],['asset-x','x'],['asset-y','y']]){
+  document.getElementById(id).addEventListener('input',event=>{
+    const asset=assets.find(item=>item.id===selectedId),number=Number(event.target.value);
+    if(asset&&currentModel&&Number.isFinite(number)){asset[prop]=number/100;PosterRenderer.constrain(asset,currentModel);fitPreview();}
+  });
+}
+function deleteSelected(){
+  const index=assets.findIndex(item=>item.id===selectedId);
+  if(index<0)return;
+  URL.revokeObjectURL(assets[index].url);assets.splice(index,1);selectedId=null;
+  renderAssetList();fitPreview();document.querySelector('#asset-status').textContent='素材已删除。';
+}
+document.querySelector('#asset-delete').addEventListener('click',deleteSelected);
+canvas.tabIndex=0;
+canvas.addEventListener('keydown',event=>{if(['Delete','Backspace'].includes(event.key)){event.preventDefault();deleteSelected();}});
+let drag=null;
+function point(event){const rect=canvas.getBoundingClientRect();return {x:(event.clientX-rect.left)/rect.width*currentModel.width,y:(event.clientY-rect.top)/rect.height*currentModel.height};}
+canvas.addEventListener('pointerdown',event=>{
+  if(!currentModel||event.button!==0)return;
+  const p=point(event),selected=assets.find(item=>item.id===selectedId);
+  const radius=14*currentModel.width/canvas.getBoundingClientRect().width;
+  if(selected){
+    const b=PosterRenderer.assetBox(selected,currentModel);
+    if(Math.hypot(p.x-b.x-b.w,p.y-b.y-b.h)<radius)drag={id:selected.id,mode:'resize',start:p,x:selected.x,y:selected.y,w:selected.w};
+  }
+  if(!drag){
+    const hit=[...assets].reverse().find(asset=>{const b=PosterRenderer.assetBox(asset,currentModel);return p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;});
+    selectedId=hit?.id||null;
+    if(hit)drag={id:hit.id,mode:'move',start:p,x:hit.x,y:hit.y,w:hit.w};
+  }
+  canvas.focus();canvas.setPointerCapture(event.pointerId);renderAssetList();fitPreview();event.preventDefault();
+});
+canvas.addEventListener('pointermove',event=>{
+  if(!drag||!currentModel)return;
+  const asset=assets.find(item=>item.id===drag.id);if(!asset)return;
+  const p=point(event);
+  if(drag.mode==='resize')asset.w=drag.w+(p.x-drag.start.x)/currentModel.width;
+  else{asset.x=drag.x+(p.x-drag.start.x)/currentModel.width;asset.y=drag.y+(p.y-drag.start.y)/currentModel.height;}
+  PosterRenderer.constrain(asset,currentModel);fitPreview();
+});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{drag=null;});
+
+document.querySelector('#background-upload').addEventListener('change',async event=>{
+  const file=event.target.files[0];if(!file)return;
+  event.target.disabled=true;loadingImages++;syncExportButtons();
+  document.querySelector('#background-status').textContent='正在本地读取背景…';
+  try{
+    const loaded=await decodeLocal(file);
+    if(background)URL.revokeObjectURL(background.url);
+    background={...loaded,name:file.name};
+    document.querySelector('#background-status').textContent=`背景已应用：${file.name}（居中裁切）`;
+    document.querySelector('#background-remove').disabled=false;
+    fitPreview();
+  }catch(error){document.querySelector('#background-status').textContent=error.message;}
+  finally{loadingImages--;syncExportButtons();event.target.disabled=false;event.target.value='';}
+});
+document.querySelector('#background-remove').addEventListener('click',()=>{
+  if(background)URL.revokeObjectURL(background.url);background=null;
+  document.querySelector('#background-remove').disabled=true;
+  document.querySelector('#background-status').textContent='已恢复渐变与几何背景。';fitPreview();
+});
+function downloadBlob(blob,name){
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function exportImage(type){
+  if(!currentModel||loadingImages||exporting)return;
+  const message=document.querySelector('#export-status');
+  let output;
+  try{
+    PosterRenderer.validateExport(currentModel);
+    exporting=true;syncExportButtons();message.textContent='正在按实际尺寸生成图片…';
+    await document.fonts.ready;
+    if(!currentModel)throw new Error('请填写有效的画布尺寸。');
+    PosterRenderer.validateExport(currentModel);
+    const snapshot=scene(),{width,height}=snapshot.model;
+    output=document.createElement('canvas');
+    PosterRenderer.draw(output,snapshot,{selection:false});
+    const mime=type==='jpg'?'image/jpeg':'image/png';
+    const blob=await new Promise((resolve,reject)=>output.toBlob(value=>value?resolve(value):reject(new Error('浏览器内存不足，无法导出该尺寸，请缩小画布后重试。')),mime,.95));
+    if(blob.type!==mime)throw new Error('浏览器不支持所选图片格式，请尝试其他格式。');
+    downloadBlob(blob,`海报-${width}x${height}.${type}`);
+    message.textContent=`已导出 ${width} × ${height} 像素 ${type.toUpperCase()}，不含选择框。`;
+  }catch(error){message.textContent=`导出失败：${error.message}`;}
+  finally{if(output){output.width=1;output.height=1;}exporting=false;syncExportButtons();}
+}
+document.querySelector('#export-png').addEventListener('click',()=>exportImage('png'));
+document.querySelector('#export-jpg').addEventListener('click',()=>exportImage('jpg'));
+for(const layout of PosterPlanner.layouts){const option=document.createElement('option');option.value=layout.id;option.textContent=layout.name;form.elements.namedItem('layout').appendChild(option);}
 new ResizeObserver(fitPreview).observe(stage);
 render();
+
+document.fonts.ready.then(fitPreview);
+window.addEventListener('resize',fitPreview);

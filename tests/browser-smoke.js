@@ -35,17 +35,17 @@ const { chromium } = require('playwright');
     await checkRatio(1920,1080);
     await checkRatio(1000,1000);
     const seen = new Set();
-    for (let i=0;i<4;i++) {
+    for (let i=0;i<12;i++) {
       seen.add(await page.locator('#poster').getAttribute('data-layout'));
       await page.locator('#relayout').click();
     }
-    assert.equal(seen.size,4);
+    assert.equal(seen.size,12);
     await page.locator('[name=style]').selectOption('高级质感');
     assert.equal(await page.locator('#poster').getAttribute('data-layout'),'center');
     assert.equal(await page.locator('#poster').getAttribute('data-font'),'serif');
-    const small = await page.locator('#poster-title').evaluate(el=>getComputedStyle(el).fontSize);
+    const small = await page.locator('#poster-canvas').evaluate(el=>el.toDataURL());
     await page.locator('[name=style]').selectOption('活力促销');
-    assert.notEqual(await page.locator('#poster-title').evaluate(el=>getComputedStyle(el).fontSize),small);
+    assert.notEqual(await page.locator('#poster-canvas').evaluate(el=>el.toDataURL()),small);
     await page.locator('[name=palette]').selectOption('黑金质感');
     assert.equal(await page.locator('#poster').evaluate(el=>getComputedStyle(el).getPropertyValue('--bg')).then(s=>s.trim()), '#161616');
     await page.locator('#relayout').click();
@@ -88,7 +88,7 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('#download').isDisabled(),true);
     assert.equal(await page.locator('#copy-prompt').isDisabled(),true);
     assert.deepEqual(errors,[]);
-    console.log('浏览器检查通过：实时文字、画布比例、四种版式、风格字号、配色、提示词复制、复制回退、完整复制、Markdown 导出、长文提示、非法输入、移动布局与极端比例。');
+    console.log('浏览器检查通过：实时文字、画布比例、十二种版式、风格字号、配色、提示词复制、复制回退、完整复制、Markdown 导出、长文提示、非法输入、移动布局与极端比例。');
   } finally {
     await browser.close();
     await fs.rm(temp,{recursive:true,force:true});

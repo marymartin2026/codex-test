@@ -22,18 +22,18 @@ test('拒绝非法尺寸和空主题', () => {
   assert.throws(() => generate({...brief,theme:' '}));
 });
 
- test('重新排版循环四种不同版式，提示词与导出保持同步', () => {
-  const {design, backgroundPrompt} = require('../web/planner.js');
+ test('重新排版循环全部版式，提示词与导出保持同步', () => {
+  const {design, backgroundPrompt, layouts} = require('../web/planner.js');
   const names = new Set();
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < layouts.length; i++) {
     const model = design(brief,i);
     names.add(model.layout.id);
     assert.ok(generate(brief,i).includes(model.layout.name));
     assert.ok(backgroundPrompt(brief,i).includes(model.layout.space));
     assert.ok(!backgroundPrompt(brief,i).includes('## 5.'));
   }
-  assert.equal(names.size,4);
-  assert.equal(design(brief,4).layout.id,design(brief,0).layout.id);
+  assert.equal(names.size,layouts.length);
+  assert.equal(design(brief,layouts.length).layout.id,design(brief,0).layout.id);
 });
 test('风格影响默认版式、字体与字号；未知选项安全回退', () => {
   const {design} = require('../web/planner.js');
@@ -43,4 +43,12 @@ test('风格影响默认版式、字体与字号；未知选项安全回退', ()
   assert.notEqual(simple.settings.font,luxury.settings.font);
   assert.notEqual(simple.settings.size,luxury.settings.size);
   assert.equal(design({...brief,industry:'__proto__',palette:'constructor',style:'toString'}).palette,'暖橙奶油');
+});
+
+test('包含八种商业模板，显式选择与中文提示词保留文案', () => {
+  const {design,layouts,backgroundPrompt}=require('../web/planner.js');
+  const required=['左文右图','上文下图','中心视觉','产品主视觉','活动促销','电商商品','简约品牌','国风宣传'];
+  for(const name of required){const layout=layouts.find(item=>item.name===name);assert.ok(layout);assert.equal(design({...brief,layout:layout.id}).layout.id,layout.id);}
+  const prompt=backgroundPrompt({...brief,title:'春天上市',subtitle:'青柠限定',body:'活动日期待确认',cta:'到店了解'});
+  for(const text of ['春天上市','青柠限定','活动日期待确认','到店了解','禁止把这些文字绘入背景'])assert.ok(prompt.includes(text));
 });

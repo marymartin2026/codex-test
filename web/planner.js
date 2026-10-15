@@ -27,7 +27,15 @@ const PosterPlanner = (() => {
     { id: 'left', name: '左对齐留白', description: '文字左对齐，主标题位于上部，正文与行动引导依次向下排列', space: '右侧保留几何主视觉，左侧约 65% 保持干净低细节' },
     { id: 'center', name: '居中聚焦', description: '标题、副标题、正文与行动引导居中排列，装饰分布在画布边缘', space: '中心约 80% 保持干净低细节，视觉元素分布在边缘' },
     { id: 'bottom', name: '底部叙事', description: '上部保留背景视觉，文字组靠下左对齐，正文跟随标题排列', space: '上方布置主视觉，下方约 65% 保持干净低细节' },
-    { id: 'split', name: '分栏构图', description: '左侧约 62% 放文字，右侧放几何主视觉，文字组垂直居中', space: '主体靠右，左侧约 65% 保持干净低细节' }
+    { id: 'split', name: '分栏构图', description: '左侧约 62% 放文字，右侧放几何主视觉，文字组垂直居中', space: '主体靠右，左侧约 65% 保持干净低细节' },
+    { id: 'text-image', name: '左文右图', description: '左侧文字与右侧产品视觉分栏', space: '左侧约 50% 为文字留白，产品视觉在右侧' },
+    { id: 'top-image', name: '上文下图', description: '上部集中标题和正文，下部展示产品或人物', space: '上方约 45% 为文字留白，下方展示主体' },
+    { id: 'hero-center', name: '中心视觉', description: '上方标题，中间主视觉，下方正文与行动引导', space: '主体置于中央，上下为文字留白' },
+    { id: 'product', name: '产品主视觉', description: '上部左对齐标题，右下展示大幅产品，左下放正文', space: '主体置于右下，左侧与上部留白' },
+    { id: 'promotion', name: '活动促销', description: '上部大标题与副标题，中央活动视觉，底部行动条', space: '中央放活动主视觉，上下留出标题和行动区域' },
+    { id: 'commerce', name: '电商商品', description: '顶部标题与副标题，中部商品展示台，底部卖点和行动信息', space: '中部大面积商品视觉，顶部和底部保持干净' },
+    { id: 'brand', name: '简约品牌', description: '小幅主视觉靠右下，左侧克制文字与大量留白', space: '大面积留白，视觉元素集中在右下角' },
+    { id: 'chinese', name: '国风宣传', description: '右侧宋体标题与正文，左侧圆形主视觉及印章装饰', space: '右侧文字留白，左侧布置东方意境主视觉' }
   ];
   const styleSettings = {
     '简约现代': { layout: 0, size: .083, font: 'sans', texture: 'minimal' },
@@ -46,7 +54,7 @@ const PosterPlanner = (() => {
     const settings = styleSettings[style];
     const offset = Number.isInteger(variant) ? ((variant % layouts.length) + layouts.length) % layouts.length : 0;
     return { width, height, industry, style, palette, colors: palettes[palette], settings,
-      layout: layouts[(settings.layout + offset) % layouts.length] };
+      layout: layouts[((layouts.findIndex(item => item.id === input.layout) >= 0 ? layouts.findIndex(item => item.id === input.layout) : settings.layout) + offset) % layouts.length] };
   }
   function generate(input, variant = 0) {
     const model = design(input, variant);
@@ -99,7 +107,7 @@ ${cta}
 - 安全边距：四周至少 ${px(.05)} px；文字与复杂背景之间增加纯色承托。字号须在实际展示尺寸下检查。
 
 ## 4. AI 背景图提示词（可复制到图片工具）
-为主题“${theme}”制作一张${orientation}商业海报背景，目标画布 ${width}×${height} 像素。行业：${industry}。风格：${style}，${styles[style]}。画面元素：${industries[industry][1]}。配色参考：${palette}，背景色 ${bg}，辅助色 ${accent}。构图：${space}，文字区域明暗平稳，保证后期文字可读。仅生成背景和视觉元素，不生成任何文字、字母、数字、Logo、二维码或水印。客户补充约束：${clean('notes') || '无额外约束'}。
+为主题“${theme}”制作一张${orientation}商业海报背景，目标画布 ${width}×${height} 像素。行业：${industry}。风格：${style}，${styles[style]}。画面元素：${industries[industry][1]}。配色参考：${palette}，背景色 ${bg}，辅助色 ${accent}。构图：${space}，文字区域明暗平稳，保证后期文字可读。仅生成背景和视觉元素，不生成任何文字、字母、数字、Logo、二维码或水印。后期叠加文案参考（仅理解主题，禁止把这些文字绘入背景）：主标题“${title}”，副标题“${subtitle}”，正文“${body}”，行动引导“${cta}”。目标受众与渠道：${clean('audience') || '待确认'}。客户补充约束：${clean('notes') || '无额外约束'}。
 
 避免元素：杂乱背景、过度装饰、难以阅读的文字区域、伪造品牌标识、变形主体、低清晰度。
 使用提示：图片工具不一定支持精确像素，先选相近宽高比，再在设计工具中裁切。Logo、产品照片和所有文字由人工后期加入；规则不会自动理解或执行补充要求中的每条视觉约束。
@@ -120,12 +128,12 @@ ${cta}
 6. 交客户审核，确认后按渠道要求导出 PNG/JPG 并保留源文件；印刷用途另向印厂确认物理尺寸、DPI、出血及 CMYK。
 
 交付清单：预览图、最终导出图、可编辑源文件、素材及字体授权记录、客户确认记录。
-本方案为制作建议，不自动生成图片、排版文件或审核结论。
+本方案为制作建议；工作台支持本地素材合成与 PNG/JPG 导出，不自动生成 AI 图片或审核结论。
 `;
   }
   function backgroundPrompt(input, variant = 0) {
     return generate(input, variant).split('## 4. AI 背景图提示词（可复制到图片工具）\n')[1].split('\n## 5.')[0].trim();
   }
-  return { generate, design, backgroundPrompt };
+  return { generate, design, backgroundPrompt, layouts };
 })();
 if (typeof module !== 'undefined') module.exports = PosterPlanner;
